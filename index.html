@@ -36,7 +36,6 @@
         <h2>Serial Connection</h2>
         <button id="connect">Connect</button>
         <button id="disconnect">Disconnect</button>
-        <button id="read">Start Reading</button>
         <select id="port-select"></select>
     </div>
     
@@ -67,16 +66,33 @@
         });
 
         connectButton.addEventListener('click', async () => {
-            const selectedPort = portSelect.value; // Get the selected port from the dropdown
-            if (!selectedPort) {
-                console.error('No port selected');
-                return;
-            }
+            
             try {
                 // Open the selected port
                 port = await navigator.serial.requestPort(); // This prompts the user to select a port
                 await port.open({ baudRate: 9600 });
                 console.log('Connected to port:', port);
+                if (port && port.readable) {
+                const reader = port.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            break; // Exit the loop if the stream is done
+                        }
+                        const decoder = new TextDecoder();
+                        const text = decoder.decode(value);
+                        dataOutput.textContent += text; // Append received data to the output area
+                        console.log('Received data:', text);
+                    }
+                } catch (error) {
+                    console.error('Error reading data:', error);
+                } finally {
+                    reader.releaseLock(); // Release the reader lock
+                }
+            } else {
+                console.error('Port is not readable or not connected');
+            }
             } catch (error) {
                 console.error('Error connecting to port:', error);
             }
@@ -102,29 +118,7 @@
             }
         });
 
-        readButton.addEventListener('click', async () => {
-            if (port && port.readable) {
-                const reader = port.readable.getReader();
-                try {
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) {
-                            break; // Exit the loop if the stream is done
-                        }
-                        const decoder = new TextDecoder();
-                        const text = decoder.decode(value);
-                        dataOutput.textContent += text; // Append received data to the output area
-                        console.log('Received data:', text);
-                    }
-                } catch (error) {
-                    console.error('Error reading data:', error);
-                } finally {
-                    reader.releaseLock(); // Release the reader lock
-                }
-            } else {
-                console.error('Port is not readable or not connected');
-            }
-        });
+       
 
         async function updatePortList(callback) {
             const ports = await navigator.serial.getPorts();

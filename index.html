@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Communication UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #serial-window, #write-window {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            margin: 5px;
+        }
+
+        #output {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 10px;
+            height: 150px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Serial Communication Interface</h1>
+    
+    <div id="serial-window">
+        <h2>Serial Connection</h2>
+        <button id="connect">Connect</button>
+        <button id="disconnect">Disconnect</button>
+        <button id="read">Start Reading</button>
+        <select id="port-select"></select>
+    </div>
+    
+    <div id="write-window">
+        <h2>Send Data</h2>
+        <textarea id="data-to-send" rows="4" cols="50"></textarea>
+        <button id="send-data">Send</button>
+    </div>
+
+    <div id="output">
+        <h2>Received Data</h2>
+        <pre id="data-output"></pre>
+    </div>
+
+    <script>
+        let port;
+        const portSelect = document.getElementById('port-select');
+        const connectButton = document.getElementById('connect');
+        const disconnectButton = document.getElementById('disconnect');
+        const sendButton = document.getElementById('send-data');
+        const readButton = document.getElementById('read');
+        const dataToSend = document.getElementById('data-to-send');
+        const dataOutput = document.getElementById('data-output');
+
+        // Populate the port list on page load
+        updatePortList(() => {
+            console.log('Port list populated. Ready to connect.');
+        });
+
+        connectButton.addEventListener('click', async () => {
+            const selectedPort = portSelect.value; // Get the selected port from the dropdown
+            if (!selectedPort) {
+                console.error('No port selected');
+                return;
+            }
+            try {
+                // Open the selected port
+                port = await navigator.serial.requestPort(); // This prompts the user to select a port
+                await port.open({ baudRate: 9600 });
+                console.log('Connected to port:', port);
+            } catch (error) {
+                console.error('Error connecting to port:', error);
+            }
+        });
+
+        disconnectButton.addEventListener('click', async () => {
+            if (port) {
+                await port.close();
+                port = null;
+                console.log('Disconnected from port');
+                updatePortList(); // Update the port list after disconnecting
+            }
+        });
+
+        sendButton.addEventListener('click', async () => {
+            if (port && port.readable) {
+                const writer = port.writable.getWriter();
+                const data = dataToSend.value;
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(data));
+                writer.releaseLock();
+                console.log('Data sent:', data);
+            }
+        });
+
+        readButton.addEventListener('click', async () => {
+            if (port && port.readable) {
+                const reader = port.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            break; // Exit the loop if the stream is done
+                        }
+                        const decoder = new TextDecoder();
+                        const text = decoder.decode(value);
+                        dataOutput.textContent += text; // Append received data to the output area
+                        console.log('Received data:', text);
+                    }
+                } catch (error) {
+                    console.error('Error reading data:', error);
+                } finally {
+                    reader.releaseLock(); // Release the reader lock
+                }
+            } else {
+                console.error('Port is not readable or not connected');
+            }
+        });
+
+        async function updatePortList(callback) {
+            const ports = await navigator.serial.getPorts();
+            portSelect.innerHTML = ''; // Clear existing options
+            ports.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.getInfo(); // Set the value to the port object
+                option.textContent = p.getInfo(); // Display the port name
+                portSelect.appendChild(option);
+            });
+            console.log('Available ports updated:', ports);
+            if (callback) callback(); // Call the callback function if provided
+        }
+    </script>
+</body>
+</html> 
